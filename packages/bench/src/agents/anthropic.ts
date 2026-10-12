@@ -62,8 +62,8 @@ interface AnthropicResponse {
 }
 
 /**
- * Reference agent that drives the benchmark with Claude through the Anthropic
- * Messages API tool-use loop. It uses `fetch` directly so the benchmark does
+ * Reference agent that drives the benchmark through the Anthropic Messages
+ * API tool-use loop. It uses `fetch` directly so the benchmark does
  * not take an SDK dependency.
  */
 export class AnthropicAgent implements BenchAgent {
