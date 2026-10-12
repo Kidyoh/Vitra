@@ -450,7 +450,7 @@ Or run directly via Node.js from source:
 |:---|:---|:---|
 | Functional | Task-specific checks | Whether the brief was satisfied (goal checks) without collateral damage (guard checks) |
 | Audit | `@vitra/eval` | WCAG contrast and layout overflow score of the target node |
-| Visual | `@vitra/renderer` + SSIM | Structural similarity of the rendered result to a reference render |
+| Visual | `@vitra/renderer` + SSIM | Per-channel structural similarity of the rendered result to a reference render |
 | Efficiency | Tool-call log | Calls against a per-task budget, minus failed, no-op, and later-overwritten edits |
 
 Built-in tasks: `pricing-card` (compose a component), `responsive-mobile` (adapt a desktop layout to 375px), and `tokenize-colors` (migrate hardcoded colors to design tokens).
@@ -460,6 +460,7 @@ vitra bench --list
 vitra bench                                   # reference solutions (should score 100)
 ANTHROPIC_API_KEY=... vitra bench --agent anthropic --model <model-id> --verbose
 vitra bench --agent anthropic --task tokenize-colors --out bench.json --min-score 80
+vitra bench --agent anthropic --runs 5        # per-task mean and standard deviation
 ```
 
 See [`packages/bench/README.md`](packages/bench/README.md) for the scoring model and for plugging in other agents.

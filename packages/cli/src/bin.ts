@@ -26,11 +26,18 @@ import { runMcpCommand } from './commands/mcp.js';
 import { runBenchCommand, formatBenchTaskList } from './commands/bench.js';
 import { formatBenchReport } from '@vitra/bench';
 
-function parseNonNegativeInt(flag: string, value: string | undefined): number | undefined {
+/**
+ * Parses an optional integer CLI flag value, enforcing a lower bound.
+ *
+ * @returns undefined when the flag was not given.
+ * @throws Error naming the flag when the value is not an integer >= `min`.
+ */
+function parseIntFlag(flag: string, value: string | undefined, min: number): number | undefined {
   if (value === undefined) return undefined;
   const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    throw new Error(`Option --${flag} expects a non-negative integer (got "${value}").`);
+  if (!Number.isInteger(parsed) || parsed < min) {
+    const expected = min === 0 ? 'a non-negative integer' : `an integer of at least ${min}`;
+    throw new Error(`Option --${flag} expects ${expected} (got "${value}").`);
   }
   return parsed;
 }
@@ -72,7 +79,7 @@ const HELP_TEXT = `
     hash-object [-w] <file>    Compute SHA-1 hash and optionally create zlib object
     cat-file [<dir>] -p <sha>  Display decompressed object content or tree listing
     mcp [<dir>]                Start Model Context Protocol (MCP) server on stdio
-    bench                      Run the VitraBench agent evaluation suite [--agent oracle|anthropic] [--task <id>] [--json] [--out <f>] [--min-score <n>] [--list]
+    bench                      Run the VitraBench agent evaluation suite [--agent oracle|anthropic] [--task <id>] [--runs <n>] [--json] [--out <f>] [--min-score <n>] [--list]
     
   Options:
     -h, --help                 Show this help message
@@ -808,6 +815,7 @@ async function main() {
             model: { type: 'string', short: 'm' },
             'max-turns': { type: 'string' },
             timeout: { type: 'string' },
+            runs: { type: 'string', short: 'r' },
             out: { type: 'string', short: 'o' },
             json: { type: 'boolean' },
             verbose: { type: 'boolean' },
@@ -822,7 +830,7 @@ async function main() {
           break;
         }
 
-        const minScore = parseNonNegativeInt('min-score', values['min-score']);
+        const minScore = parseIntFlag('min-score', values['min-score'], 0);
         const agentKind = values.agent ?? 'oracle';
         if (agentKind !== 'oracle' && agentKind !== 'anthropic') {
           throw new Error(`Unknown bench agent "${agentKind}". Expected one of: oracle, anthropic.`);
@@ -831,8 +839,9 @@ async function main() {
           agent: agentKind,
           tasks: values.task,
           model: values.model,
-          maxTurns: parseNonNegativeInt('max-turns', values['max-turns']),
-          timeoutMs: parseNonNegativeInt('timeout', values.timeout),
+          maxTurns: parseIntFlag('max-turns', values['max-turns'], 1),
+          timeoutMs: parseIntFlag('timeout', values.timeout, 0),
+          runs: parseIntFlag('runs', values.runs, 1),
           out: values.out,
         });
 

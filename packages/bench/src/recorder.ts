@@ -1,5 +1,6 @@
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { ISceneStore, SceneNode, SceneSnapshot } from '@vitra/core';
+import type { TokenRegistry, TokenRegistrySnapshot } from '@vitra/tokens';
 import type { BenchToolContent, BenchToolResult, EfficiencyMetrics, ToolCallRecord } from './types.js';
 
 /**
@@ -21,34 +22,60 @@ export const MUTATING_TOOLS: ReadonlySet<string> = new Set([
   'set_theme',
 ]);
 
+const SESSION_CLOSED_RESULT: BenchToolResult = {
+  isError: true,
+  content: [{ type: 'text', text: 'The benchmark session has ended; further tool calls are ignored.' }],
+};
+
 /**
  * Records every tool call an agent makes against the Vitra MCP server along
- * with the property-level scene edits each call produced. The edit log is what
- * allows wasted work (failed, no-op, and later-overwritten edits) to be
- * measured after the run.
+ * with the property-level scene and token edits each call produced. The edit
+ * log is what allows wasted work (failed, no-op, and later-overwritten edits)
+ * to be measured after the run.
+ *
+ * Calls are executed one at a time in arrival order. Agents may issue calls
+ * concurrently, but each call's before/after snapshots must bracket only its
+ * own effects for edits to be attributed correctly.
  */
 export class ToolCallRecorder {
   private readonly records: ToolCallRecord[] = [];
   private closed = false;
+  private queue: Promise<unknown> = Promise.resolve();
 
+  /**
+   * @param client Connected MCP client for the Vitra server under test.
+   * @param store Scene store the server mutates; snapshotted around each call.
+   * @param tokenRegistry Token registry the server mutates; snapshotted around each call.
+   */
   constructor(
     private readonly client: Client,
-    private readonly store: ISceneStore
+    private readonly store: ISceneStore,
+    private readonly tokenRegistry: TokenRegistry
   ) {}
 
   /**
    * Invokes a tool through the MCP client and records the outcome. Transport
    * or protocol errors are converted into an error result rather than thrown,
-   * so that a misbehaving agent cannot abort the benchmark run.
+   * so that a misbehaving agent cannot abort the benchmark run. Calls made
+   * after `close()` (including calls still queued at that point) are refused
+   * and not recorded.
    */
-  async callTool(name: string, args: Record<string, unknown>): Promise<BenchToolResult> {
+  callTool(name: string, args: Record<string, unknown>): Promise<BenchToolResult> {
+    const run = this.queue.then(() => this.execute(name, args));
+    this.queue = run.catch(() => undefined);
+    return run;
+  }
+
+  /**
+   * Executes and records a single call. Must only be invoked through the
+   * serialising queue in `callTool`.
+   */
+  private async execute(name: string, args: Record<string, unknown>): Promise<BenchToolResult> {
     if (this.closed) {
-      return {
-        isError: true,
-        content: [{ type: 'text', text: 'The benchmark session has ended; further tool calls are ignored.' }],
-      };
+      return SESSION_CLOSED_RESULT;
     }
     const before = this.store.exportSnapshot();
+    const tokensBefore = this.tokenRegistry.snapshot();
     const started = performance.now();
     let result: BenchToolResult;
     try {
@@ -63,10 +90,7 @@ export class ToolCallRecorder {
     const durationMs = performance.now() - started;
     const after = this.store.exportSnapshot();
 
-    const edits = diffSnapshotEdits(before, after);
-    if (!result.isError) {
-      edits.push(...tokenEdits(name, args));
-    }
+    const edits = [...diffSnapshotEdits(before, after), ...diffTokenEdits(tokensBefore, this.tokenRegistry.snapshot())];
     const mutated = edits.length > 0 || snapshotOrderChanged(before, after);
 
     this.records.push({
@@ -201,6 +225,10 @@ export function diffSnapshotEdits(before: SceneSnapshot, after: SceneSnapshot): 
   return edits.sort();
 }
 
+/**
+ * Whether any node's child order changed between snapshots. Reorders are real
+ * mutations even though they produce no property-level edit keys.
+ */
 function snapshotOrderChanged(before: SceneSnapshot, after: SceneSnapshot): boolean {
   for (const [id, node] of Object.entries(after.nodes)) {
     const prev = before.nodes[id];
@@ -211,36 +239,46 @@ function snapshotOrderChanged(before: SceneSnapshot, after: SceneSnapshot): bool
   return false;
 }
 
+/**
+ * Child ids of a container node, or an empty list for leaf nodes.
+ */
 function childIdsOf(node: SceneNode): string[] {
   return 'childIds' in node && Array.isArray(node.childIds) ? node.childIds : [];
 }
 
-function tokenEdits(name: string, args: Record<string, unknown>): string[] {
-  if (name === 'set_theme') {
-    return ['tokens#theme'];
-  }
-  if (name === 'register_tokens' && args.tokens && typeof args.tokens === 'object') {
-    const theme = typeof args.theme === 'string' ? args.theme : 'base';
-    return flattenTokenPaths(args.tokens as Record<string, unknown>, '').map(
-      (p) => `tokens:${theme}.${p}`
-    );
-  }
-  return [];
-}
-
-function flattenTokenPaths(tree: Record<string, unknown>, prefix: string): string[] {
-  const paths: string[] = [];
-  for (const [key, value] of Object.entries(tree)) {
-    const next = prefix ? `${prefix}.${key}` : key;
-    if (value && typeof value === 'object' && !('$value' in value)) {
-      paths.push(...flattenTokenPaths(value as Record<string, unknown>, next));
-    } else {
-      paths.push(next);
+/**
+ * Token edit keys between two registry snapshots:
+ * - `tokens:base.<path>` for a changed, added, or removed base token
+ * - `tokens:<theme>.<path>` for a changed theme override
+ * - `tokens#theme` when the active theme changes
+ *
+ * Re-registering identical values yields no keys, so such calls count as no-ops.
+ */
+export function diffTokenEdits(before: TokenRegistrySnapshot, after: TokenRegistrySnapshot): string[] {
+  const edits: string[] = [];
+  const diffMap = (
+    scope: string,
+    a: Record<string, string | number> = {},
+    b: Record<string, string | number> = {}
+  ): void => {
+    for (const path of new Set([...Object.keys(a), ...Object.keys(b)])) {
+      if (a[path] !== b[path]) edits.push(`tokens:${scope}.${path}`);
     }
+  };
+  diffMap('base', before.base, after.base);
+  for (const theme of new Set([...Object.keys(before.themes), ...Object.keys(after.themes)])) {
+    diffMap(theme, before.themes[theme], after.themes[theme]);
   }
-  return paths;
+  if (before.activeTheme !== after.activeTheme) {
+    edits.push('tokens#theme');
+  }
+  return edits.sort();
 }
 
+/**
+ * Converts a raw MCP `callTool` response into the benchmark's result shape,
+ * keeping only text and image content blocks.
+ */
 function normalizeResult(raw: unknown): BenchToolResult {
   const obj = (raw ?? {}) as { isError?: unknown; content?: unknown };
   const content: BenchToolContent[] = [];

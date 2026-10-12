@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { AnthropicAgent, pricingCardTask, runTask } from '../src/index.js';
+import { AnthropicAgent, parseRetryAfter, pricingCardTask, runTask } from '../src/index.js';
 
 interface RecordedRequest {
   url: string;
@@ -12,7 +12,9 @@ interface RecordedRequest {
   };
 }
 
-function mockFetch(responses: Array<{ status?: number; body: unknown }>): { fetch: typeof fetch; requests: RecordedRequest[] } {
+function mockFetch(
+  responses: Array<{ status?: number; body: unknown; headers?: Record<string, string> }>
+): { fetch: typeof fetch; requests: RecordedRequest[] } {
   const requests: RecordedRequest[] = [];
   const impl = async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
     requests.push({
@@ -22,7 +24,7 @@ function mockFetch(responses: Array<{ status?: number; body: unknown }>): { fetc
     });
     const next = responses.shift();
     if (!next) throw new Error('Unexpected request');
-    return new Response(JSON.stringify(next.body), { status: next.status ?? 200 });
+    return new Response(JSON.stringify(next.body), { status: next.status ?? 200, headers: next.headers });
   };
   return { fetch: impl as typeof fetch, requests };
 }
@@ -98,10 +100,89 @@ describe('AnthropicAgent', () => {
     }
   });
 
-  it('surfaces HTTP errors from the API', async () => {
-    const { fetch } = mockFetch([{ status: 529, body: { error: { type: 'overloaded_error' } } }]);
+  it('retries rate limits and overload with backoff, honouring retry-after', async () => {
+    const delays: number[] = [];
+    const { fetch, requests } = mockFetch([
+      { status: 429, body: { error: { type: 'rate_limit_error' } }, headers: { 'retry-after': '3' } },
+      { status: 529, body: { error: { type: 'overloaded_error' } } },
+      { body: { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Done.' }] } },
+    ]);
+    const agent = new AnthropicAgent({
+      apiKey: 'k',
+      model: 'm',
+      fetch,
+      retryBaseDelayMs: 100,
+      sleep: async (ms) => {
+        delays.push(ms);
+      },
+    });
+    const result = await runTask(pricingCardTask, agent);
+    expect(result.agentError).toBeUndefined();
+    expect(requests).toHaveLength(3);
+    expect(delays[0]).toBe(3000);
+    // Second attempt: exponential backoff of 200ms with jitter in [100, 200].
+    expect(delays[1]).toBeGreaterThanOrEqual(100);
+    expect(delays[1]).toBeLessThanOrEqual(200);
+  });
+
+  it('gives up after the configured number of retries', async () => {
+    const overloaded = { status: 529, body: { error: { type: 'overloaded_error' } } };
+    const { fetch, requests } = mockFetch([overloaded, overloaded, overloaded]);
+    const agent = new AnthropicAgent({ apiKey: 'k', model: 'm', fetch, maxRetries: 2, sleep: async () => undefined });
+    const result = await runTask(pricingCardTask, agent);
+    expect(requests).toHaveLength(3);
+    expect(result.agentError).toMatch(/HTTP 529.*gave up after 3 attempt/s);
+  });
+
+  it('does not retry non-retryable errors', async () => {
+    const { fetch, requests } = mockFetch([{ status: 400, body: { error: { type: 'invalid_request_error' } } }]);
+    const agent = new AnthropicAgent({ apiKey: 'k', model: 'm', fetch, sleep: async () => undefined });
+    const result = await runTask(pricingCardTask, agent);
+    expect(requests).toHaveLength(1);
+    expect(result.agentError).toMatch(/HTTP 400/);
+  });
+
+  it('reports a max_tokens truncation as an agent error instead of finishing', async () => {
+    const { fetch } = mockFetch([
+      {
+        body: {
+          stop_reason: 'max_tokens',
+          content: [{ type: 'tool_use', id: 'tu', name: 'insert_component', input: { parentId: 'board' } }],
+        },
+      },
+    ]);
+    const result = await runTask(pricingCardTask, new AnthropicAgent({ apiKey: 'k', model: 'm', fetch, maxTokens: 64 }));
+    expect(result.agentError).toMatch(/truncated at max_tokens \(64\)/);
+    expect(result.calls).toHaveLength(0);
+  });
+
+  it('reports unexpected stop reasons as agent errors', async () => {
+    const { fetch } = mockFetch([{ body: { stop_reason: 'refusal', content: [] } }]);
     const result = await runTask(pricingCardTask, new AnthropicAgent({ apiKey: 'k', model: 'm', fetch }));
-    expect(result.agentError).toMatch(/HTTP 529/);
+    expect(result.agentError).toMatch(/unexpected stop_reason "refusal"/);
+  });
+
+  it('cancels the in-flight request when the run times out', async () => {
+    let requestSignal: AbortSignal | undefined;
+    const hanging = ((_url: string, init?: RequestInit) => {
+      requestSignal = init?.signal ?? undefined;
+      return new Promise<Response>((_, reject) => {
+        requestSignal?.addEventListener('abort', () => reject(new Error('aborted')));
+      });
+    }) as typeof fetch;
+    const result = await runTask(pricingCardTask, new AnthropicAgent({ apiKey: 'k', model: 'm', fetch: hanging }), {
+      timeoutMs: 20,
+    });
+    expect(result.agentError).toMatch(/time limit/);
+    expect(requestSignal?.aborted).toBe(true);
+  });
+
+  it('parses retry-after in seconds and as an HTTP date', () => {
+    expect(parseRetryAfter('2')).toBe(2000);
+    expect(parseRetryAfter(null)).toBeUndefined();
+    expect(parseRetryAfter('soon')).toBeUndefined();
+    const inFuture = new Date(Date.now() + 5000).toUTCString();
+    expect(parseRetryAfter(inFuture)).toBeGreaterThan(3000);
   });
 
   it('stops after the configured number of turns', async () => {

@@ -23,6 +23,8 @@ export interface BenchCliOptions {
   maxTurns?: number;
   /** Per-task time limit in milliseconds. */
   timeoutMs?: number;
+  /** Repetitions per task, for mean and standard deviation (default 1). */
+  runs?: number;
   /** Write the JSON suite result to this path. */
   out?: string;
 }
@@ -54,7 +56,7 @@ export function createBenchAgent(kind: string, options: BenchCliOptions = {}): B
 export async function runBenchCommand(options: BenchCliOptions = {}): Promise<BenchCommandResult> {
   const tasks = selectTasks(options.tasks);
   const agent = createBenchAgent(options.agent ?? 'oracle', options);
-  const result = await runSuite(tasks, agent, { timeoutMs: options.timeoutMs });
+  const result = await runSuite(tasks, agent, { timeoutMs: options.timeoutMs, runs: options.runs });
 
   let outFile: string | undefined;
   if (options.out) {

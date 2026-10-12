@@ -12,6 +12,9 @@ const FEATURES: Array<{ title: string; body: string }> = [
   { title: 'Agent-ready', body: 'MCP tools let agents compose and verify interfaces.' },
 ];
 
+/**
+ * Builds one feature card tree with ids namespaced by `prefix`.
+ */
 function featureCard(prefix: string, index: number, width: number, bodyWidth: number): DeclarativeNode {
   const feature = FEATURES[index]!;
   return {

@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { createDocumentNode, createFrameNode, InMemorySceneStore } from '@vitra/core';
-import { computeEfficiency, diffSnapshotEdits } from '../src/recorder.js';
+import { computeEfficiency, diffSnapshotEdits, diffTokenEdits } from '../src/recorder.js';
 import { runTask } from '../src/harness.js';
 import { ScriptedAgent } from '../src/agents/scripted.js';
-import { pricingCardTask } from '../src/tasks/index.js';
+import { pricingCardTask, tokenizeColorsTask } from '../src/tasks/index.js';
+import type { BenchAgent } from '../src/types.js';
 import type { ToolCallRecord } from '../src/types.js';
 
 function record(partial: Partial<ToolCallRecord> & { index: number }): ToolCallRecord {
@@ -96,5 +97,56 @@ describe('ToolCallRecorder via runTask', () => {
     expect(result.calls[7]!.mutated).toBe(false);
     expect(result.efficiency.wastedCalls).toBe(4);
     expect(result.efficiency.totalCalls).toBe(8);
+  });
+});
+
+describe('diffTokenEdits', () => {
+  it('reports changed base tokens, theme overrides, and theme switches only', () => {
+    const before = { base: { a: '#000', b: 1 }, themes: { dark: { a: '#111' } }, activeTheme: null };
+    const after = { base: { a: '#000', b: 2, c: 'x' }, themes: { dark: { a: '#111' }, light: { a: '#fff' } }, activeTheme: 'light' };
+    expect(diffTokenEdits(before, after)).toEqual(['tokens#theme', 'tokens:base.b', 'tokens:base.c', 'tokens:light.a']);
+    expect(diffTokenEdits(before, before)).toEqual([]);
+  });
+});
+
+describe('ToolCallRecorder token tracking', () => {
+  it('detects no-op token registration from registry state, not call arguments', async () => {
+    const agent = new ScriptedAgent('tokens', {
+      'tokenize-colors': [
+        // Identical to the fixture tokens: no state change.
+        { tool: 'register_tokens', args: { tokens: { colors: { surface: { $value: '#1E1E2E' } } } } },
+        // New value, later overwritten: superseded.
+        { tool: 'register_tokens', args: { tokens: { colors: { accent: '#F38BA8' } } } },
+        { tool: 'register_tokens', args: { tokens: { colors: { accent: '#FAB387' } } } },
+        { tool: 'set_theme', args: {} },
+        { tool: 'set_theme', args: { theme: 'dark' } },
+      ],
+    });
+    const result = await runTask(tokenizeColorsTask, agent);
+    expect(result.calls.map((c) => c.wasted ?? 'ok')).toEqual(['no-op', 'superseded', 'ok', 'no-op', 'ok']);
+    expect(result.calls[2]!.edits).toEqual(['tokens:base.colors.accent']);
+    expect(result.calls[4]!.edits).toEqual(['tokens#theme']);
+  });
+});
+
+describe('ToolCallRecorder concurrency', () => {
+  it('attributes edits to the right call when an agent issues calls in parallel', async () => {
+    const parallel: BenchAgent = {
+      name: 'parallel',
+      run: async (session) => {
+        await Promise.all([
+          session.callTool('update_node', { nodeId: 'promo-title', patch: { fill: '$colors.text.primary' } }),
+          session.callTool('update_node', { nodeId: 'promo-body', patch: { fill: '$colors.text.muted' } }),
+          session.callTool('update_node', { nodeId: 'promo-button', patch: { fill: '$colors.brand.primary' } }),
+        ]);
+      },
+    };
+    const result = await runTask(tokenizeColorsTask, parallel);
+    expect(result.calls.map((c) => c.edits)).toEqual([
+      ['promo-title.fill'],
+      ['promo-body.fill'],
+      ['promo-button.fill'],
+    ]);
+    expect(result.calls.every((c) => c.wasted === undefined)).toBe(true);
   });
 });

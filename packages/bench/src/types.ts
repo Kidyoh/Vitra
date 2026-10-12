@@ -91,6 +91,12 @@ export interface BenchTask {
    * call. Runs at or under budget receive full call-count efficiency credit.
    */
   callBudget: number;
+  /**
+   * Task-specific composite weights, applied over the defaults. Use this when
+   * a sub-score carries no signal for the task, for example visual similarity
+   * on a refactor whose reference renders identically to the fixture.
+   */
+  weights?: Partial<ScoreWeights>;
 }
 
 /**
@@ -130,6 +136,13 @@ export interface BenchSession {
    * The MCP surface has no scene-read tool, so agents receive this as context.
    */
   sceneContext: string;
+  /**
+   * Aborted when the run ends, including on timeout. Agents should stop work
+   * (and cancel in-flight requests) when it fires; tool calls made afterwards
+   * are refused.
+   */
+  signal: AbortSignal;
+  /** Invokes a Vitra MCP tool. Calls are recorded and executed in order. */
   callTool(name: string, args: Record<string, unknown>): Promise<BenchToolResult>;
 }
 
@@ -197,7 +210,11 @@ export interface EfficiencyMetrics {
 export interface VisualMetrics {
   /** Mean structural similarity in [0, 1]; 0 when rendering failed. */
   ssim: number;
-  /** Ratio of the smaller to the larger render area in [0, 1]. */
+  /**
+   * Per-dimension size agreement in [0, 1]:
+   * `min(w) / max(w) * min(h) / max(h)`. Penalises aspect-ratio changes that
+   * an area ratio would miss (400x200 against 200x400 scores 0.25).
+   */
   sizeRatio: number;
   candidateSize: { width: number; height: number } | null;
   referenceSize: { width: number; height: number };
@@ -214,9 +231,13 @@ export interface TaskResult {
   title: string;
   category: BenchTaskCategory;
   agent: string;
+  /** Zero-based repetition index when a task is run more than once. */
+  run: number;
   checks: Array<{ id: string; description: string; kind: BenchCheckKind; weight: number } & CheckOutcome>;
   /** Weighted goal-check credit in [0, 1]. Scales the quality sub-scores. */
   goalCompletion: number;
+  /** Weighted guard-check credit in [0, 1]; 1 when the task has no guards. */
+  guardCredit: number;
   /** Goal completion multiplied by guard-check credit, as 0-100. */
   functionalScore: number;
   audit: AuditResult | null;
@@ -227,9 +248,10 @@ export interface TaskResult {
   calls: ToolCallRecord[];
   /**
    * Composite score (0-100):
-   * `functional * w.functional + goalCompletion * (audit * w.audit + visual * w.visual + efficiency * w.efficiency)`.
-   * Quality sub-scores are gated by goal completion so an untouched or empty
-   * scene cannot collect audit, visual, or efficiency credit.
+   * `functional * w.functional + qualityGate * (audit * w.audit + visual * w.visual + efficiency * w.efficiency)`
+   * where `qualityGate = goalCompletion * guardCredit`. An untouched scene, or
+   * one where the agent broke what it was told to leave alone, cannot collect
+   * full audit, visual, or efficiency credit.
    */
   score: number;
   durationMs: number;
@@ -240,14 +262,50 @@ export interface TaskResult {
 }
 
 /**
+ * Summary statistics for one task across repeated runs.
+ */
+export interface TaskSummary {
+  taskId: string;
+  title: string;
+  category: BenchTaskCategory;
+  runs: number;
+  /** Mean composite score. */
+  mean: number;
+  /** Sample standard deviation of the composite score (0 for a single run). */
+  std: number;
+  min: number;
+  max: number;
+  /** Mean sub-scores across runs. */
+  functional: number;
+  audit: number;
+  visual: number;
+  efficiency: number;
+  /** Mean SSIM across runs. */
+  ssim: number;
+  /** Mean tool calls and wasted calls across runs. */
+  calls: number;
+  wastedCalls: number;
+}
+
+/**
  * Aggregate result for a suite run.
  */
 export interface SuiteResult {
   agent: string;
   startedAt: string;
+  /** Number of repetitions per task. */
+  runs: number;
+  /** Every individual task run, ordered by run, then by task. */
   tasks: TaskResult[];
-  /** Mean composite score across tasks. */
+  /** Per-task statistics across runs, in task order. */
+  summaries: TaskSummary[];
+  /** Mean of the per-task mean scores. */
   score: number;
+  /**
+   * Sample standard deviation of the suite score across runs (the mean task
+   * score of each repetition); 0 for a single run.
+   */
+  scoreStd: number;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { RgbaImage } from '../src/png.js';
-import { computeSsim, resizeRgba, ssimMetric, toLuma } from '../src/similarity.js';
+import { computeSsim, resizeRgba, ssimMetric, toColorPlanes } from '../src/similarity.js';
 
 function solid(width: number, height: number, rgba: [number, number, number, number]): RgbaImage {
   const data = new Uint8Array(width * height * 4);
@@ -57,8 +57,40 @@ describe('similarity', () => {
   });
 
   it('composites transparent pixels over white', () => {
-    const luma = toLuma(solid(1, 1, [0, 0, 0, 0]));
-    expect(luma[0]).toBeCloseTo(255, 5);
+    const planes = toColorPlanes(solid(1, 1, [0, 0, 0, 0]));
+    expect(planes.map((p) => p[0])).toEqual([255, 255, 255]);
+  });
+
+  it('distinguishes colours of equal luma', () => {
+    // Rec. 601 luma of pure red is 0.299 * 255 = 76.2, so a flat (76, 76, 76)
+    // gray is indistinguishable from red on luma alone.
+    const red = solid(16, 16, [255, 0, 0, 255]);
+    const gray = solid(16, 16, [76, 76, 76, 255]);
+    expect(computeSsim(red, gray)).toBeLessThan(0.3);
+    expect(computeSsim(red, red)).toBeCloseTo(1, 10);
+  });
+
+  it('penalises a brand colour swap on an otherwise identical layout', () => {
+    const withButton = (rgb: [number, number, number]): RgbaImage => {
+      const img = solid(32, 32, [15, 17, 26, 255]);
+      for (let y = 12; y < 20; y++) {
+        for (let x = 4; x < 28; x++) img.data.set([...rgb, 255], (y * 32 + x) * 4);
+      }
+      return img;
+    };
+    const blue = withButton([0x89, 0xb4, 0xfa]);
+    const pink = withButton([0xf3, 0x8b, 0xa8]);
+    expect(computeSsim(blue, pink)).toBeLessThan(0.95);
+  });
+
+  it('returns 0 for zero-area images', () => {
+    const empty: RgbaImage = { width: 0, height: 0, data: new Uint8Array(0) };
+    expect(computeSsim(empty, empty)).toBe(0);
+  });
+
+  it('compares single-pixel images instead of treating them as identical', () => {
+    expect(computeSsim(solid(1, 1, [255, 255, 255, 255]), solid(1, 1, [0, 0, 0, 255]))).toBeLessThan(0.01);
+    expect(computeSsim(solid(1, 1, [10, 20, 30, 255]), solid(1, 1, [10, 20, 30, 255]))).toBeCloseTo(1, 10);
   });
 
   it('resizes with bilinear sampling and preserves solid colors', () => {

@@ -99,9 +99,15 @@ function promoBoard(color: (hex: string) => string): DeclarativeNode {
   };
 }
 
+/** Keeps a hex color literal (fixture). */
 const literal = (hex: string): string => hex;
+/** Maps a hex color to its token reference when one exists (reference). */
 const tokenized = (hex: string): string => TOKEN_FOR_HEX[hex.toLowerCase()] ?? hex;
 
+/**
+ * Color-bearing properties (`fill`, `stroke`, `color`) set on a node,
+ * excluding `none` and `transparent`.
+ */
 function colorEntries(node: SceneNode): Array<[string, string]> {
   const entries: Array<[string, string]> = [];
   for (const prop of COLOR_PROPS) {
@@ -113,6 +119,10 @@ function colorEntries(node: SceneNode): Array<[string, string]> {
   return entries;
 }
 
+/**
+ * Resolves a color or token reference to a lowercase literal, or a marker
+ * string when the reference cannot be resolved.
+ */
 function resolveColor(registry: TokenRegistry, value: string): string {
   try {
     return String(registry.resolveValue(value)).toLowerCase();
@@ -139,6 +149,11 @@ export const tokenizeColorsTask: BenchTask = {
   reference: { nodes: [promoBoard(tokenized)], tokens: TOKENS },
   targetNodeId: 'board-tokens',
   callBudget: 8,
+  // The reference renders identically to the fixture and the audit is clean
+  // before any change, so visual and audit carry almost no signal here. Keep a
+  // small weight on each as regression detectors and score the migration
+  // itself through the functional checks.
+  weights: { functional: 0.65, audit: 0.05, visual: 0.1, efficiency: 0.2 },
   checks: [
     {
       id: 'tokens-applied',

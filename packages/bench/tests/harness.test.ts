@@ -4,12 +4,17 @@ import {
   createOracleAgent,
   describeScene,
   buildScene,
+  computeSizeRatio,
   formatBenchReport,
+  getReferenceImage,
+  resolveWeights,
+  DEFAULT_WEIGHTS,
   pricingCardTask,
   responsiveMobileTask,
   runSuite,
   runTask,
   ScriptedAgent,
+  REFERENCE_SOLUTIONS,
   selectTasks,
   tokenizeColorsTask,
   type BenchAgent,
@@ -206,5 +211,124 @@ describe('VitraBench session lifecycle', () => {
     expect(result.checks.find((c) => c.id === 'card-exists')!.passed).toBe(false);
     expect(result.calls).toHaveLength(0);
     expect(lateResult?.isError).toBe(true);
+  });
+});
+
+describe('VitraBench scoring rules', () => {
+  it('gates quality sub-scores on guard credit as well as goal completion', async () => {
+    // Completes the mobile layout but also wrecks the desktop artboard it was
+    // told to leave alone.
+    const vandal = new ScriptedAgent('vandal', {
+      'responsive-mobile': [
+        ...(REFERENCE_SOLUTIONS['responsive-mobile'] ?? []),
+        { tool: 'update_node', args: { nodeId: 'desktop-heading', patch: { text: 'Overwritten' } } },
+      ],
+    });
+    const result = await runTask(responsiveMobileTask, vandal);
+    expect(result.goalCompletion).toBe(1);
+    expect(result.guardCredit).toBeLessThan(1);
+    expect(result.auditScore).toBe(100);
+    expect(result.visual.ssim).toBeCloseTo(1, 6);
+    const weights = resolveWeights(responsiveMobileTask);
+    const gate = result.goalCompletion * result.guardCredit;
+    expect(result.score).toBe(
+      Math.round(
+        weights.functional * result.functionalScore +
+          gate * (weights.audit * result.auditScore + weights.visual * result.visual.score + weights.efficiency * result.efficiency.score)
+      )
+    );
+    expect(result.score).toBeLessThan(50);
+  });
+
+  it('penalises aspect-ratio changes in the size ratio', () => {
+    expect(computeSizeRatio({ width: 400, height: 200 }, { width: 200, height: 400 })).toBeCloseTo(0.25, 10);
+    expect(computeSizeRatio({ width: 320, height: 300 }, { width: 320, height: 300 })).toBe(1);
+    expect(computeSizeRatio({ width: 0, height: 10 }, { width: 10, height: 10 })).toBe(0);
+  });
+
+  it('layers task weights over defaults and run options over task weights', () => {
+    const task = { weights: { visual: 0, functional: 0.8 } };
+    const fromTask = resolveWeights(task);
+    const total = 0.8 + DEFAULT_WEIGHTS.audit + DEFAULT_WEIGHTS.efficiency;
+    expect(fromTask.visual).toBe(0);
+    expect(fromTask.functional).toBeCloseTo(0.8 / total, 10);
+    const fromOptions = resolveWeights(task, { weights: { visual: 0.5 } });
+    expect(fromOptions.visual).toBeGreaterThan(0);
+    expect(() => resolveWeights({ weights: { audit: -1 } })).toThrow(/non-negative/);
+  });
+
+  it('down-weights visual and audit on the token migration task', () => {
+    const weights = resolveWeights(tokenizeColorsTask);
+    expect(weights.visual).toBeLessThan(DEFAULT_WEIGHTS.visual);
+    expect(weights.audit).toBeLessThan(DEFAULT_WEIGHTS.audit);
+    expect(weights.functional).toBeGreaterThan(DEFAULT_WEIGHTS.functional);
+  });
+
+  it('renders each task reference once and reuses it', async () => {
+    const first = getReferenceImage(pricingCardTask, 1);
+    expect(getReferenceImage(pricingCardTask, 1)).toBe(first);
+    expect(getReferenceImage(pricingCardTask, 2)).not.toBe(first);
+    const image = await first;
+    expect(image.width).toBeGreaterThan(0);
+  });
+});
+
+describe('VitraBench repeated runs', () => {
+  it('repeats each task and reports mean and sample standard deviation', async () => {
+    let call = 0;
+    // Alternates between a complete and an empty run of the pricing task.
+    const flaky: BenchAgent = {
+      name: 'flaky',
+      run: async (session) => {
+        if (call++ % 2 === 0) {
+          for (const step of REFERENCE_SOLUTIONS['pricing-card'] ?? []) {
+            await session.callTool(step.tool, structuredClone(step.args));
+          }
+        }
+      },
+    };
+    const suite = await runSuite([pricingCardTask], flaky, { runs: 4 });
+    expect(suite.runs).toBe(4);
+    expect(suite.tasks.map((t) => [t.run, t.score])).toEqual([
+      [0, 100],
+      [1, 0],
+      [2, 100],
+      [3, 0],
+    ]);
+    const summary = suite.summaries[0]!;
+    expect(summary.mean).toBe(50);
+    expect(summary.std).toBeCloseTo(Math.sqrt((4 * 2500) / 3), 1);
+    expect(summary.min).toBe(0);
+    expect(summary.max).toBe(100);
+    expect(suite.score).toBe(50);
+    expect(suite.scoreStd).toBeCloseTo(summary.std, 1);
+
+    const report = formatBenchReport(suite, { color: false });
+    expect(report).toContain('4 runs per task');
+    expect(report).toMatch(/Suite score:\s+50\/100 ± 57\.7/);
+  });
+
+  it('reports zero deviation for a single run and rejects invalid run counts', async () => {
+    const suite = await runSuite([pricingCardTask], createOracleAgent());
+    expect(suite.runs).toBe(1);
+    expect(suite.scoreStd).toBe(0);
+    expect(suite.summaries[0]!.std).toBe(0);
+    await expect(runSuite([pricingCardTask], createOracleAgent(), { runs: 0 })).rejects.toThrow(/positive integer/);
+  });
+});
+
+describe('VitraBench abort signal', () => {
+  it('aborts the session signal when the run times out', async () => {
+    let signal: AbortSignal | undefined;
+    const waiting: BenchAgent = {
+      name: 'waiting',
+      run: (session) => {
+        signal = session.signal;
+        return new Promise(() => undefined);
+      },
+    };
+    const result = await runTask(pricingCardTask, waiting, { timeoutMs: 10 });
+    expect(result.agentError).toMatch(/time limit/);
+    expect(signal?.aborted).toBe(true);
   });
 });

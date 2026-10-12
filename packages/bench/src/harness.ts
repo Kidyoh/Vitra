@@ -23,6 +23,7 @@ import type {
   ScoreWeights,
   SuiteResult,
   TaskResult,
+  TaskSummary,
   VisualMetrics,
 } from './types.js';
 
@@ -44,7 +45,10 @@ export const DEFAULT_WEIGHTS: ScoreWeights = {
  * Options controlling a benchmark run.
  */
 export interface RunOptions {
-  /** Overrides for the composite score weights. They are re-normalised to sum to 1. */
+  /**
+   * Overrides for the composite score weights, applied over the defaults and
+   * any task-specific weights. The result is re-normalised to sum to 1.
+   */
   weights?: Partial<ScoreWeights>;
   /** Image similarity metric (default: SSIM). */
   visualMetric?: ImageSimilarityMetric;
@@ -52,6 +56,8 @@ export interface RunOptions {
   renderScale?: number;
   /** Abort the agent after this many milliseconds (default: no limit). */
   timeoutMs?: number;
+  /** Repetitions per task for `runSuite`, to measure run-to-run variance (default 1). */
+  runs?: number;
 }
 
 /**
@@ -117,11 +123,18 @@ export async function renderNode(
  * Runs one task against one agent in an isolated scene and scores the result.
  * Agent exceptions and timeouts are captured in `agentError`; the final scene
  * is scored regardless so partial progress is still measured.
+ *
+ * When the run ends (normally, by error, or by timeout) the session's abort
+ * signal fires and further tool calls are refused, so a lingering agent can
+ * neither alter the scene being scored nor keep spending model tokens.
+ *
+ * @param run Zero-based repetition index recorded on the result.
  */
 export async function runTask(
   task: BenchTask,
   agent: BenchAgent,
-  options: RunOptions = {}
+  options: RunOptions = {},
+  run = 0
 ): Promise<TaskResult> {
   const started = performance.now();
   const { store, tokenRegistry } = buildScene(task.fixture);
@@ -133,7 +146,8 @@ export async function runTask(
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
 
-  const recorder = new ToolCallRecorder(client, store);
+  const recorder = new ToolCallRecorder(client, store, tokenRegistry);
+  const abort = new AbortController();
   const listed = await client.listTools();
   const session: BenchSession = {
     task,
@@ -143,6 +157,7 @@ export async function runTask(
       inputSchema: t.inputSchema as Record<string, unknown>,
     })),
     sceneContext,
+    signal: abort.signal,
     callTool: (name, args) => recorder.callTool(name, args),
   };
 
@@ -153,6 +168,7 @@ export async function runTask(
     agentError = err instanceof Error ? err.message : String(err);
   } finally {
     recorder.close();
+    abort.abort(new Error('The benchmark run has ended.'));
     await client.close().catch(() => undefined);
     await server.close().catch(() => undefined);
   }
@@ -185,10 +201,11 @@ export async function runTask(
   const calls = recorder.getRecords();
   const efficiency = computeEfficiency(calls, task.callBudget);
 
-  const weights = normalizeWeights({ ...DEFAULT_WEIGHTS, ...options.weights });
+  const weights = resolveWeights(task, options);
+  const qualityGate = goalCompletion * guardCredit;
   const score = Math.round(
     weights.functional * functionalScore +
-      goalCompletion *
+      qualityGate *
         (weights.audit * auditScore + weights.visual * visual.score + weights.efficiency * efficiency.score)
   );
 
@@ -197,8 +214,10 @@ export async function runTask(
     title: task.title,
     category: task.category,
     agent: agent.name,
+    run,
     checks,
     goalCompletion: round4(goalCompletion),
+    guardCredit: round4(guardCredit),
     functionalScore,
     audit,
     auditScore,
@@ -219,23 +238,110 @@ export async function runTask(
 }
 
 /**
- * Runs every task sequentially against one agent.
+ * Runs every task against one agent, `options.runs` times (default 1), and
+ * aggregates per-task mean and sample standard deviation. Runs execute
+ * sequentially: repetition by repetition, tasks in order within each.
+ *
+ * @throws Error when `options.runs` is not a positive integer.
  */
 export async function runSuite(
   tasks: BenchTask[],
   agent: BenchAgent,
   options: RunOptions = {}
 ): Promise<SuiteResult> {
+  const runs = options.runs ?? 1;
+  if (!Number.isInteger(runs) || runs < 1) {
+    throw new Error(`runSuite: runs must be a positive integer (got ${runs}).`);
+  }
   const startedAt = new Date().toISOString();
   const results: TaskResult[] = [];
-  for (const task of tasks) {
-    results.push(await runTask(task, agent, options));
+  for (let run = 0; run < runs; run++) {
+    for (const task of tasks) {
+      results.push(await runTask(task, agent, options, run));
+    }
   }
-  const score =
-    results.length === 0 ? 0 : Math.round(results.reduce((s, r) => s + r.score, 0) / results.length);
-  return { agent: agent.name, startedAt, tasks: results, score };
+
+  const summaries = tasks.map((task) => summarizeTask(task, results.filter((r) => r.taskId === task.id)));
+  const suiteScorePerRun = Array.from({ length: runs }, (_, run) =>
+    mean(results.filter((r) => r.run === run).map((r) => r.score))
+  );
+  return {
+    agent: agent.name,
+    startedAt,
+    runs,
+    tasks: results,
+    summaries,
+    score: Math.round(mean(summaries.map((s) => s.mean))),
+    scoreStd: round2(sampleStd(suiteScorePerRun)),
+  };
 }
 
+/**
+ * Aggregates the repeated results of one task.
+ */
+function summarizeTask(task: BenchTask, results: TaskResult[]): TaskSummary {
+  const scores = results.map((r) => r.score);
+  return {
+    taskId: task.id,
+    title: task.title,
+    category: task.category,
+    runs: results.length,
+    mean: round2(mean(scores)),
+    std: round2(sampleStd(scores)),
+    min: scores.length ? Math.min(...scores) : 0,
+    max: scores.length ? Math.max(...scores) : 0,
+    functional: round2(mean(results.map((r) => r.functionalScore))),
+    audit: round2(mean(results.map((r) => r.auditScore))),
+    visual: round2(mean(results.map((r) => r.visual.score))),
+    efficiency: round2(mean(results.map((r) => r.efficiency.score))),
+    ssim: round4(mean(results.map((r) => r.visual.ssim))),
+    calls: round2(mean(results.map((r) => r.efficiency.totalCalls))),
+    wastedCalls: round2(mean(results.map((r) => r.efficiency.wastedCalls))),
+  };
+}
+
+/**
+ * Reference renders keyed by task and render scale. The reference scene is
+ * deterministic, so it is rendered once per process rather than once per run.
+ */
+const referenceCache = new WeakMap<BenchTask, Map<number, Promise<RgbaImage>>>();
+
+/**
+ * Returns the cached reference render for a task, rendering it on first use.
+ * A failed render is evicted so a later run can retry.
+ */
+export function getReferenceImage(task: BenchTask, scale: number): Promise<RgbaImage> {
+  let byScale = referenceCache.get(task);
+  if (!byScale) {
+    byScale = new Map();
+    referenceCache.set(task, byScale);
+  }
+  let image = byScale.get(scale);
+  if (!image) {
+    const reference = buildScene(task.reference);
+    image = renderNode(reference.store, task.targetNodeId, reference.tokenRegistry, scale);
+    const cache = byScale;
+    image.catch(() => cache.delete(scale));
+    byScale.set(scale, image);
+  }
+  return image;
+}
+
+/**
+ * Per-dimension size agreement: `min(w)/max(w) * min(h)/max(h)`. Unlike an
+ * area ratio, this penalises transposed or stretched renders.
+ */
+export function computeSizeRatio(
+  a: { width: number; height: number },
+  b: { width: number; height: number }
+): number {
+  const ratio = (x: number, y: number): number => (Math.max(x, y) === 0 ? 0 : Math.min(x, y) / Math.max(x, y));
+  return ratio(a.width, b.width) * ratio(a.height, b.height);
+}
+
+/**
+ * Renders the agent's target node and compares it to the reference render.
+ */
 async function compareToReference(
   task: BenchTask,
   store: ISceneStore,
@@ -244,8 +350,7 @@ async function compareToReference(
 ): Promise<VisualMetrics> {
   const metric = options.visualMetric ?? ssimMetric;
   const scale = options.renderScale ?? 1;
-  const reference = buildScene(task.reference);
-  const referenceImage = await renderNode(reference.store, task.targetNodeId, reference.tokenRegistry, scale);
+  const referenceImage = await getReferenceImage(task, scale);
   const referenceSize = { width: referenceImage.width, height: referenceImage.height };
 
   if (!store.getNode(task.targetNodeId)) {
@@ -261,9 +366,7 @@ async function compareToReference(
 
   try {
     const candidate = await renderNode(store, task.targetNodeId, tokenRegistry, scale);
-    const candidateArea = candidate.width * candidate.height;
-    const referenceArea = referenceImage.width * referenceImage.height;
-    const sizeRatio = Math.min(candidateArea, referenceArea) / Math.max(candidateArea, referenceArea);
+    const sizeRatio = computeSizeRatio(candidate, referenceImage);
     const resized = resizeRgba(candidate, referenceImage.width, referenceImage.height);
     const similarity = await metric.compare(resized, referenceImage);
     return {
@@ -285,19 +388,43 @@ async function compareToReference(
   }
 }
 
-function normalizeWeights(weights: ScoreWeights): ScoreWeights {
-  const total = weights.functional + weights.audit + weights.visual + weights.efficiency;
+/**
+ * Resolves composite weights: defaults, then task-specific weights, then
+ * run options, re-normalised to sum to 1.
+ *
+ * @throws Error when any weight is negative or not finite, or all are zero.
+ */
+export function resolveWeights(task: Pick<BenchTask, 'weights'>, options: Pick<RunOptions, 'weights'> = {}): ScoreWeights {
+  const merged: ScoreWeights = { ...DEFAULT_WEIGHTS };
+  for (const layer of [task.weights, options.weights]) {
+    if (!layer) continue;
+    for (const key of Object.keys(merged) as Array<keyof ScoreWeights>) {
+      const value = layer[key];
+      if (value !== undefined) merged[key] = value;
+    }
+  }
+  const values = Object.values(merged);
+  if (values.some((v) => !Number.isFinite(v) || v < 0)) {
+    throw new Error(`Score weights must be finite and non-negative (got ${JSON.stringify(merged)}).`);
+  }
+  const total = values.reduce((sum, v) => sum + v, 0);
   if (!(total > 0)) {
     throw new Error('Score weights must sum to a positive number.');
   }
   return {
-    functional: weights.functional / total,
-    audit: weights.audit / total,
-    visual: weights.visual / total,
-    efficiency: weights.efficiency / total,
+    functional: merged.functional / total,
+    audit: merged.audit / total,
+    visual: merged.visual / total,
+    efficiency: merged.efficiency / total,
   };
 }
 
+/**
+ * Weighted mean of check credit in [0, 1]. Uses `credit` when a check reports
+ * partial credit, otherwise 1 for passed and 0 for failed.
+ *
+ * @param empty Value returned when there are no checks of this kind.
+ */
 function weightedCredit(
   checks: Array<{ weight: number; passed: boolean; credit?: number }>,
   empty = 0
@@ -311,10 +438,32 @@ function weightedCredit(
   return earned / total;
 }
 
+/** Arithmetic mean; 0 for an empty list. */
+function mean(values: number[]): number {
+  return values.length === 0 ? 0 : values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+/** Sample standard deviation (n - 1); 0 for fewer than two values. */
+function sampleStd(values: number[]): number {
+  if (values.length < 2) return 0;
+  const m = mean(values);
+  return Math.sqrt(values.reduce((sum, v) => sum + (v - m) ** 2, 0) / (values.length - 1));
+}
+
+/** Rounds to two decimal places. */
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/** Rounds to four decimal places. */
 function round4(value: number): number {
   return Math.round(value * 10000) / 10000;
 }
 
+/**
+ * Races a promise against a timer, rejecting with a descriptive error when
+ * the limit is reached. A missing or non-positive limit disables the timer.
+ */
 async function withTimeout<T>(promise: Promise<T>, timeoutMs?: number): Promise<T> {
   if (!timeoutMs || timeoutMs <= 0) return promise;
   let timer: NodeJS.Timeout | undefined;

@@ -15,21 +15,25 @@ export interface ImageSimilarityMetric {
 }
 
 /**
- * Converts RGBA pixels to Rec. 601 luma, compositing transparent pixels over
- * white so that an empty render never matches a dark reference by accident.
+ * Splits RGBA pixels into three colour planes, compositing transparent pixels
+ * over white so that an empty render never matches a dark reference by
+ * accident.
  */
-export function toLuma(image: RgbaImage): Float64Array {
+export function toColorPlanes(image: RgbaImage): [Float64Array, Float64Array, Float64Array] {
   const { width, height, data } = image;
-  const luma = new Float64Array(width * height);
+  const planes: [Float64Array, Float64Array, Float64Array] = [
+    new Float64Array(width * height),
+    new Float64Array(width * height),
+    new Float64Array(width * height),
+  ];
   for (let i = 0; i < width * height; i++) {
     const o = i * 4;
     const alpha = data[o + 3]! / 255;
-    const r = data[o]! * alpha + 255 * (1 - alpha);
-    const g = data[o + 1]! * alpha + 255 * (1 - alpha);
-    const b = data[o + 2]! * alpha + 255 * (1 - alpha);
-    luma[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+    for (let c = 0; c < 3; c++) {
+      planes[c]![i] = data[o + c]! * alpha + 255 * (1 - alpha);
+    }
   }
-  return luma;
+  return planes;
 }
 
 /**
@@ -82,11 +86,16 @@ export interface SsimOptions {
 }
 
 /**
- * Mean Structural Similarity Index (Wang et al., 2004) over luma, computed on
- * a sliding square window with the standard stabilising constants
- * C1 = (0.01 * 255)^2 and C2 = (0.03 * 255)^2.
+ * Mean Structural Similarity Index (Wang et al., 2004) computed independently
+ * on the R, G, and B planes and averaged. Working per channel keeps the metric
+ * colour-sensitive: two colours of equal luma (for example pure red and a
+ * mid gray) are not reported as a match.
  *
- * @returns similarity in [-1, 1]; 1 for identical images.
+ * Each plane uses a sliding square window with the standard stabilising
+ * constants C1 = (0.01 * 255)^2 and C2 = (0.03 * 255)^2.
+ *
+ * @returns similarity in [-1, 1]; 1 for identical images. Zero-area images
+ *   return 0, since an empty render carries no evidence of a match.
  * @throws Error when the images differ in size.
  */
 export function computeSsim(a: RgbaImage, b: RgbaImage, options: SsimOptions = {}): number {
@@ -96,14 +105,35 @@ export function computeSsim(a: RgbaImage, b: RgbaImage, options: SsimOptions = {
     );
   }
   const { width, height } = a;
+  if (width === 0 || height === 0) {
+    return 0;
+  }
   const windowSize = Math.max(1, Math.min(options.windowSize ?? 8, width, height));
   const stride = Math.max(1, options.stride ?? Math.floor(windowSize / 2));
-  const la = toLuma(a);
-  const lb = toLuma(b);
+  const planesA = toColorPlanes(a);
+  const planesB = toColorPlanes(b);
+  let total = 0;
+  for (let c = 0; c < 3; c++) {
+    total += planeSsim(planesA[c]!, planesB[c]!, width, height, windowSize, stride);
+  }
+  return total / 3;
+}
+
+/**
+ * Mean windowed SSIM of a single plane. The window always fits because the
+ * caller clamps it to the image size.
+ */
+function planeSsim(
+  la: Float64Array,
+  lb: Float64Array,
+  width: number,
+  height: number,
+  windowSize: number,
+  stride: number
+): number {
   const c1 = (0.01 * 255) ** 2;
   const c2 = (0.03 * 255) ** 2;
   const n = windowSize * windowSize;
-
   let total = 0;
   let windows = 0;
   for (let y = 0; y + windowSize <= height; y += stride) {
@@ -136,11 +166,11 @@ export function computeSsim(a: RgbaImage, b: RgbaImage, options: SsimOptions = {
       windows++;
     }
   }
-  return windows === 0 ? 1 : total / windows;
+  return total / windows;
 }
 
 /**
- * Default metric: SSIM clamped to [0, 1].
+ * Default metric: per-channel SSIM clamped to [0, 1].
  */
 export const ssimMetric: ImageSimilarityMetric = {
   name: 'ssim',

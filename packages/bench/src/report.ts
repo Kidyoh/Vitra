@@ -12,67 +12,114 @@ export interface ReportFormatOptions {
 
 /**
  * Formats a suite result as a deterministic, human-readable terminal report.
+ * The table shows per-task means across runs; with more than one run the
+ * standard deviation column is populated. Per-run detail is printed for
+ * single runs, and for every run when `verbose` is set.
  */
 export function formatBenchReport(result: SuiteResult, options: ReportFormatOptions = {}): string {
   const useColor = options.color ?? !process.env.NO_COLOR;
+  const verbose = options.verbose ?? false;
   const paint = (code: string, text: string): string => (useColor ? `\x1b[${code}m${text}\x1b[0m` : text);
   const dim = (t: string): string => paint('2', t);
   const cyan = (t: string): string => paint('36', t);
   const scoreColor = (score: number): string =>
-    paint(score >= 90 ? '32' : score >= 70 ? '33' : '31', String(score).padStart(3));
+    paint(score >= 90 ? '32' : score >= 70 ? '33' : '31', String(Math.round(score)).padStart(3));
+  const std = (value: number): string => (result.runs > 1 ? value.toFixed(1) : '-');
+  const bar = (l: string, m: string, r: string): string =>
+    dim(l + [22, 7, 7, 7, 7, 8, 8, 7, 8].map((w) => '─'.repeat(w)).join(m) + r);
 
   const lines: string[] = [];
   lines.push('');
-  lines.push(` VitraBench report  agent ${cyan(result.agent)}`);
-  lines.push(dim('┌──────────────────────┬───────┬────────┬───────┬────────┬────────┬───────┬────────┐'));
   lines.push(
-    `${dim('│')} ${'task'.padEnd(20)} ${dim('│')} score ${dim('│')} checks ${dim('│')} audit ${dim('│')} visual ${dim('│')} effic. ${dim('│')} calls ${dim('│')} wasted ${dim('│')}`
+    ` VitraBench report  agent ${cyan(result.agent)}` +
+      (result.runs > 1 ? dim(`  ${result.runs} runs per task, mean shown`) : '')
   );
-  lines.push(dim('├──────────────────────┼───────┼────────┼───────┼────────┼────────┼───────┼────────┤'));
-  for (const task of result.tasks) {
-    const passed = task.checks.filter((c) => c.passed).length;
+  lines.push(bar('┌', '┬', '┐'));
+  lines.push(
+    [
+      dim('│'),
+      'task'.padEnd(20),
+      dim('│'),
+      'score',
+      dim('│'),
+      ' ±std',
+      dim('│'),
+      'func.',
+      dim('│'),
+      'audit',
+      dim('│'),
+      '  ssim',
+      dim('│'),
+      'effic.',
+      dim('│'),
+      'calls',
+      dim('│'),
+      'wasted',
+      dim('│'),
+    ].join(' ')
+  );
+  lines.push(bar('├', '┼', '┤'));
+  for (const summary of result.summaries) {
     lines.push(
       [
         dim('│'),
-        task.taskId.padEnd(20).slice(0, 20),
+        summary.taskId.padEnd(20).slice(0, 20),
         dim('│'),
-        `  ${scoreColor(task.score)}`,
+        `  ${scoreColor(summary.mean)}`,
         dim('│'),
-        `${passed}/${task.checks.length}`.padStart(6),
+        std(summary.std).padStart(5),
         dim('│'),
-        String(task.auditScore).padStart(5),
+        String(Math.round(summary.functional)).padStart(5),
         dim('│'),
-        task.visual.ssim.toFixed(3).padStart(6),
+        String(Math.round(summary.audit)).padStart(5),
         dim('│'),
-        String(task.efficiency.score).padStart(6),
+        summary.ssim.toFixed(3).padStart(6),
         dim('│'),
-        String(task.efficiency.totalCalls).padStart(5),
+        String(Math.round(summary.efficiency)).padStart(6),
         dim('│'),
-        String(task.efficiency.wastedCalls).padStart(6),
+        formatCount(summary.calls).padStart(5),
+        dim('│'),
+        formatCount(summary.wastedCalls).padStart(6),
         dim('│'),
       ].join(' ')
     );
   }
-  lines.push(dim('└──────────────────────┴───────┴────────┴───────┴────────┴────────┴───────┴────────┘'));
-  lines.push(` Suite score: ${scoreColor(result.score)}/100`);
+  lines.push(bar('└', '┴', '┘'));
+  lines.push(
+    ` Suite score: ${scoreColor(result.score)}/100` + (result.runs > 1 ? ` ± ${result.scoreStd.toFixed(1)}` : '')
+  );
 
-  for (const task of result.tasks) {
-    lines.push('');
-    lines.push(formatTaskDetail(task, paint, options.verbose ?? false));
+  if (result.runs === 1 || verbose) {
+    for (const task of result.tasks) {
+      lines.push('');
+      lines.push(formatTaskDetail(task, paint, verbose, result.runs > 1));
+    }
+  } else {
+    lines.push(dim(' Per-run detail: pass --verbose, or --out <file> for the full JSON result.'));
   }
   lines.push('');
   return lines.join('\n');
 }
 
+/** Formats a mean count with at most one decimal place. */
+function formatCount(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+/**
+ * Formats the check results, sub-scores, and optional call log of one run.
+ */
 function formatTaskDetail(
   task: TaskResult,
   paint: (code: string, text: string) => string,
-  verbose: boolean
+  verbose: boolean,
+  showRun: boolean
 ): string {
   const lines: string[] = [];
   const ok = paint('32', '✔');
   const bad = paint('31', '✕');
-  lines.push(` ${task.taskId} ${paint('2', `(${task.category}) ${task.title}`)}`);
+  const runLabel = showRun ? ` run ${task.run + 1}` : '';
+  lines.push(` ${task.taskId}${runLabel} ${paint('2', `(${task.category}) ${task.title}`)}`);
   for (const check of task.checks) {
     lines.push(`   ${check.passed ? ok : bad} ${check.description}${paint('2', `  ${check.detail}`)}`);
   }

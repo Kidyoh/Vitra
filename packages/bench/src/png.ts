@@ -138,6 +138,10 @@ export function decodePng(buffer: Uint8Array): RgbaImage {
   return { width, height, data: rgba };
 }
 
+/**
+ * PNG Paeth predictor: picks whichever of left, up, or upper-left is closest
+ * to `left + up - upLeft`.
+ */
 function paeth(a: number, b: number, c: number): number {
   const p = a + b - c;
   const pa = Math.abs(p - a);
