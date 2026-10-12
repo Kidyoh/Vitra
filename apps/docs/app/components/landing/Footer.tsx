@@ -5,7 +5,7 @@ import { ArrowUpRight } from 'lucide-react';
 export const Footer: React.FC = () => {
   return (
     <footer className="border-t border-border bg-background py-16">
-      <div className="max-w-[1436px] mx-auto px-6">
+      <div className="max-w-7xl mx-auto px-8 md:px-12">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8 pb-12 border-b border-border">
           {/* Logo & Manifesto */}
           <div className="flex flex-col gap-2 max-w-md">

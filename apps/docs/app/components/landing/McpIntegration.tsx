@@ -13,15 +13,15 @@ export const McpIntegration: React.FC = () => {
   ];
 
   return (
-    <section id="agents" className="py-24 border-t border-border bg-background">
-      <div className="max-w-[1436px] mx-auto px-6">
+    <section id="agents" className="py-24 md:py-32 bg-background">
+      <div className="max-w-7xl mx-auto px-8 md:px-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
            <div className="lg:col-span-5">
-            <div className="text-xs font-mono font-medium text-vitra-cyan uppercase tracking-wider mb-2">
+            <div className="text-sm font-medium text-muted-foreground mb-3">
               Autonomous AI Tools
             </div>
-            <h2 className="text-3xl sm:text-4xl md:text-[48px] font-medium tracking-[-0.022em] text-foreground mb-6">
-              AI Agents with True Design Understanding
+            <h2 className="text-4xl md:text-5xl font-medium tracking-[-1.5px] leading-[1.15] text-foreground mb-6">
+              AI agents with true design <span className="font-serif italic font-normal">understanding</span>.
             </h2>
             <p className="text-muted-foreground text-[16px] leading-relaxed mb-6">
               Most AI tools write code by looking at screenshots and guessing pixel values. Vitra provides AI models like Claude, Cursor, and ChatGPT with a direct runtime environment—allowing them to inspect, construct, and audit user interfaces with guaranteed precision.
@@ -57,7 +57,7 @@ export const McpIntegration: React.FC = () => {
             </div>
           </div>
 
-           <div className="lg:col-span-7 linear-card rounded-xl p-6">
+           <div className="lg:col-span-7 linear-card rounded-2xl p-6">
             <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
               <div className="flex items-center gap-2">
                 <Bot className="w-4 h-4 text-vitra-cyan" />
