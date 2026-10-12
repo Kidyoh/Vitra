@@ -6,8 +6,6 @@ import { Copy, Check, ShieldCheck } from 'lucide-react';
 import { Header } from './Header';
 
 const installCommand = 'curl -fsSL https://raw.githubusercontent.com/ruhamabek/Vitra/main/scripts/install.sh | bash';
-const videoUrl =
-  'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260307_083826_e938b29f-a43a-41ec-a153-3d4730578ab8.mp4';
 
 export const Hero: React.FC = () => {
   const sectionRef = useRef<HTMLElement>(null);
@@ -97,13 +95,18 @@ export const Hero: React.FC = () => {
         style={{ marginLeft: 'calc(-50vw + 50%)' }}
       >
         <video
-          src={videoUrl}
           autoPlay
           muted
           loop
           playsInline
+          preload="auto"
+          poster="/videos/hero-poster.webp"
+          aria-hidden
           className="absolute inset-0 w-full h-full object-cover"
-        />
+        >
+          <source src="/videos/hero.webm" type="video/webm" />
+          <source src="/videos/hero.mp4" type="video/mp4" />
+        </video>
         <motion.div
           style={reduceMotion ? undefined : { y: demoY }}
           className="relative z-10 max-w-5xl w-[90%]"
