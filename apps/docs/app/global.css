@@ -8,6 +8,8 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
+  --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
+  --color-hero-subtitle: var(--hero-subtitle);
 
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
@@ -45,28 +47,28 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  /* Premium High-Contrast Light Mode */
+  /* Monochrome Light Mode */
   --background: #ffffff;
-  --foreground: #0f172a;
+  --foreground: #0a0a0a;
   --card: #ffffff;
-  --card-foreground: #0f172a;
+  --card-foreground: #0a0a0a;
   --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #0891b2;
+  --popover-foreground: #0a0a0a;
+  --primary: #0a0a0a;
   --primary-foreground: #ffffff;
-  --secondary: #f8fafc;
-  --secondary-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #f1f5f9;
-  --accent-foreground: #0f172a;
+  --secondary: #fafafa;
+  --secondary-foreground: #0a0a0a;
+  --muted: #f5f5f5;
+  --muted-foreground: #737373;
+  --accent: #f5f5f5;
+  --accent-foreground: #0a0a0a;
   --destructive: #ef4444;
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #0891b2;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --ring: #0a0a0a;
 
   /* Vitra Brand Tokens (Light) */
-  --vitra-cyan: #0891b2;
+  --vitra-cyan: #0a0a0a;
   --vitra-blue: #2563eb;
   --code-keyword: #f472b6;
   --code-string: #34d399;
@@ -79,28 +81,28 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  /* Linear Dark Baseline */
-  --background: #08090a;
-  --foreground: #f7f8f8;
-  --card: #0f1011;
-  --card-foreground: #f7f8f8;
-  --popover: #0f1011;
-  --popover-foreground: #f7f8f8;
-  --primary: #00f0ff;
-  --primary-foreground: #08090a;
-  --secondary: #121315;
-  --secondary-foreground: #d0d6e0;
-  --muted: #161718;
-  --muted-foreground: #8a8f98;
-  --accent: #161718;
-  --accent-foreground: #f7f8f8;
+  /* Pure Black Dark Mode (matches the landing page) */
+  --background: hsl(0 0% 0%);
+  --foreground: hsl(0 0% 100%);
+  --card: hsl(0 0% 5%);
+  --card-foreground: hsl(0 0% 100%);
+  --popover: hsl(0 0% 5%);
+  --popover-foreground: hsl(0 0% 100%);
+  --primary: hsl(0 0% 100%);
+  --primary-foreground: hsl(0 0% 0%);
+  --secondary: hsl(0 0% 8%);
+  --secondary-foreground: hsl(0 0% 85%);
+  --muted: hsl(0 0% 10%);
+  --muted-foreground: hsl(0 0% 65%);
+  --accent: hsl(0 0% 12%);
+  --accent-foreground: hsl(0 0% 100%);
   --destructive: #ef4444;
-  --border: #1c1d1e;
-  --input: #1c1d1e;
-  --ring: #00f0ff;
+  --border: hsl(0 0% 15%);
+  --input: hsl(0 0% 15%);
+  --ring: hsl(0 0% 100%);
 
   /* Vitra Brand Tokens (Dark) */
-  --vitra-cyan: #00f0ff;
+  --vitra-cyan: hsl(0 0% 100%);
   --vitra-blue: #2563eb;
   --code-keyword: #f472b6;
   --code-string: #34d399;
@@ -119,6 +121,70 @@
   }
 }
 
+/* ========================================================
+   Landing Page Palette (pure black, monochrome)
+   Scoped to the landing wrapper so docs keep their theme.
+   `:root .landing` outranks the theme's `:is(html.dark, ...)` rule,
+   and the page stays dark even when the docs theme is light.
+   ======================================================== */
+:root .landing {
+  color-scheme: dark;
+  --background: hsl(0 0% 0%);
+  --foreground: hsl(0 0% 100%);
+  --card: hsl(0 0% 5%);
+  --card-foreground: hsl(0 0% 100%);
+  --secondary: hsl(0 0% 8%);
+  --secondary-foreground: hsl(0 0% 85%);
+  --muted: hsl(0 0% 10%);
+  --muted-foreground: hsl(0 0% 65%);
+  --accent: hsl(0 0% 12%);
+  --accent-foreground: hsl(0 0% 100%);
+  --border: hsl(0 0% 20%);
+  --input: hsl(0 0% 20%);
+  --ring: hsl(0 0% 100%);
+  --hero-subtitle: hsl(210 17% 95%);
+  --vitra-cyan: hsl(0 0% 100%);
+}
+
+html:root .landing .linear-card {
+  background-color: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+}
+
+html:root .landing :not(pre) > code {
+  background: var(--muted) !important;
+  color: var(--foreground) !important;
+  border: 1px solid var(--border) !important;
+}
+
+.liquid-glass {
+  background: rgba(255, 255, 255, 0.01);
+  background-blend-mode: luminosity;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: none;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.liquid-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.4px;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.15) 20%,
+    rgba(255, 255, 255, 0) 40%, rgba(255, 255, 255, 0) 60%,
+    rgba(255, 255, 255, 0.15) 80%, rgba(255, 255, 255, 0.45) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
 /* Linear-style Card Border & Specular Rim */
 .linear-card {
   background-color: var(--card);
@@ -128,7 +194,7 @@
 
 /* Linear-style Subtle Radial Ambient Glow */
 .hero-glow {
-  background: radial-gradient(circle 600px at 50% -10%, rgba(0, 240, 255, 0.08), rgba(37, 99, 235, 0.03) 40%, transparent 80%);
+  background: radial-gradient(circle 600px at 50% -10%, rgba(255, 255, 255, 0.05), transparent 70%);
 }
 
 /* ========================================================
@@ -144,12 +210,12 @@
 .dark .fd-sidebar a[aria-current="page"],
 .dark [data-fd-framework] .fd-sidebar-link[data-active="true"],
 .dark [data-fd-framework] .fd-sidebar-link-active {
-  background: rgba(0, 240, 255, 0.09) !important;
-  color: #00f0ff !important;
-  font-weight: 600 !important;
-  border-left: 2.5px solid #00f0ff !important;
-  border-radius: 0 6px 6px 0 !important;
-  box-shadow: inset 0 0 16px rgba(0, 240, 255, 0.04) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #ffffff !important;
+  font-weight: 500 !important;
+  border-left: none !important;
+  border-radius: 8px !important;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1) !important;
 }
 
 .dark aside#nd-sidebar a[data-active="true"] svg,
@@ -158,7 +224,7 @@
 .dark .fd-sidebar a[aria-current="page"] svg,
 .dark [data-fd-framework] .fd-sidebar-link[data-active="true"] svg,
 .dark [data-fd-framework] .fd-sidebar-link-active svg {
-  color: #00f0ff !important;
+  color: #ffffff !important;
 }
 
 /* Sidebar Active Navigation Highlight - Light Mode defined below with high specificity */
@@ -171,10 +237,10 @@
 .dark [role="tab"][data-active="true"],
 .dark #nd-docs-layout[data-fd-framework] .fd-page-body .fd-tab-trigger.fd-tab-active,
 .dark #nd-docs-layout[data-fd-framework] .fd-page-body .fd-tab-trigger[data-state="active"] {
-  background: #121315 !important;
-  color: #00f0ff !important;
+  background: #141414 !important;
+  color: #ffffff !important;
   font-weight: 600 !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(0, 240, 255, 0.25) !important;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.12) !important;
 }
 
 /* Content & Code Tabs Active Highlight - Light Mode */
@@ -186,9 +252,9 @@
 #nd-docs-layout[data-fd-framework] .fd-page-body .fd-tab-trigger.fd-tab-active,
 #nd-docs-layout[data-fd-framework] .fd-page-body .fd-tab-trigger[data-state="active"] {
   background: #ffffff !important;
-  color: #0f172a !important;
+  color: #0a0a0a !important;
   font-weight: 600 !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), inset 0 0 0 1px #cbd5e1 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), inset 0 0 0 1px #d4d4d4 !important;
 }
 
 /* ========================================================
@@ -198,8 +264,8 @@
 /* Sidebar Background & Dividing Border in Light Mode */
 :root:not(.dark) aside#nd-sidebar,
 html:not(.dark) aside#nd-sidebar {
-  background: #f8fafc !important;
-  border-right: 1px solid #e2e8f0 !important;
+  background: #fafafa !important;
+  border-right: 1px solid #e5e5e5 !important;
   position: relative;
 }
 
@@ -211,7 +277,7 @@ html:not(.dark) aside#nd-sidebar {
   bottom: 0;
   right: 100%;
   width: 100vw;
-  background: #f8fafc !important;
+  background: #fafafa !important;
   pointer-events: none;
 }
 
@@ -220,8 +286,8 @@ html:not(.dark) aside#nd-sidebar {
   html:not(.dark) body {
     background: linear-gradient(
       to right,
-      #f8fafc 0%,
-      #f8fafc calc(var(--fd-threadline-frame-gutter, 0px) + var(--fd-sidebar-width, 260px)),
+      #fafafa 0%,
+      #fafafa calc(var(--fd-threadline-frame-gutter, 0px) + var(--fd-sidebar-width, 260px)),
       #ffffff calc(var(--fd-threadline-frame-gutter, 0px) + var(--fd-sidebar-width, 260px)),
       #ffffff 100%
     ) !important;
@@ -239,43 +305,43 @@ html:not(.dark) aside#nd-sidebar {
 /* Search Button & Kbd Shortcut in Light Mode */
 :root:not(.dark) aside#nd-sidebar button:has(kbd) {
   background: #ffffff !important;
-  border: 1px solid #e2e8f0 !important;
+  border: 1px solid #e5e5e5 !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
-  color: #64748b !important;
+  color: #737373 !important;
 }
 :root:not(.dark) aside#nd-sidebar button:has(kbd):hover {
-  background: #f1f5f9 !important;
-  border-color: #cbd5e1 !important;
-  color: #0f172a !important;
+  background: #f5f5f5 !important;
+  border-color: #d4d4d4 !important;
+  color: #0a0a0a !important;
 }
 :root:not(.dark) aside#nd-sidebar button:has(kbd) kbd {
-  background: #f1f5f9 !important;
-  border: 1px solid #e2e8f0 !important;
-  color: #64748b !important;
+  background: #f5f5f5 !important;
+  border: 1px solid #e5e5e5 !important;
+  color: #737373 !important;
 }
 
 /* Documentation Dropdown Button in Light Mode */
 :root:not(.dark) aside#nd-sidebar button:has(svg:first-child) {
   background: #ffffff !important;
-  border: 1px solid #e2e8f0 !important;
+  border: 1px solid #e5e5e5 !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
-  color: #0f172a !important;
+  color: #0a0a0a !important;
   font-weight: 500 !important;
 }
 :root:not(.dark) aside#nd-sidebar button:has(svg:first-child):hover {
-  background: #f1f5f9 !important;
-  border-color: #cbd5e1 !important;
+  background: #f5f5f5 !important;
+  border-color: #d4d4d4 !important;
 }
 
 /* Inactive Sidebar Links in Light Mode */
 :root:not(.dark) :is(aside#nd-sidebar, aside#nd-sidebar-mobile, .fd-sidebar) :is(a, button):not([data-sidebar-control]):not([data-theme-toggle]):not([data-active="true"]):not([aria-current="page"]):not(.fd-sidebar-link-active) {
-  color: #64748b !important;
+  color: #737373 !important;
   background: transparent !important;
   border: none !important;
 }
 :root:not(.dark) :is(aside#nd-sidebar, aside#nd-sidebar-mobile, .fd-sidebar) :is(a, button):not([data-sidebar-control]):not([data-theme-toggle]):not([data-active="true"]):not([aria-current="page"]):not(.fd-sidebar-link-active):hover {
   background: rgba(15, 23, 42, 0.04) !important;
-  color: #0f172a !important;
+  color: #0a0a0a !important;
   border-radius: 6px !important;
   border: none !important;
 }
@@ -287,8 +353,8 @@ html:not(.dark) aside#nd-sidebar {
 :root:not(.dark) :is(aside#nd-sidebar, aside#nd-sidebar-mobile, .fd-sidebar) :is(a, button):is([data-active="true"], [aria-current="page"], .fd-sidebar-link-active),
 :root:not(.dark) [data-fd-framework] .fd-sidebar-link[data-active="true"],
 :root:not(.dark) [data-fd-framework] .fd-sidebar-link-active {
-  background: #e0f2fe !important;
-  color: #0284c7 !important;
+  background: rgba(0, 0, 0, 0.05) !important;
+  color: #0a0a0a !important;
   font-weight: 600 !important;
   border-radius: 6px !important;
   border: none !important;
@@ -299,18 +365,18 @@ html:not(.dark) aside#nd-sidebar {
 :root:not(.dark) :is(aside#nd-sidebar, aside#nd-sidebar-mobile, .fd-sidebar) :is(a, button):is([data-active="true"], [aria-current="page"], .fd-sidebar-link-active):focus,
 :root:not(.dark) [data-fd-framework] .fd-sidebar-link[data-active="true"]:hover,
 :root:not(.dark) [data-fd-framework] .fd-sidebar-link-active:hover {
-  background: #bae6fd !important;
-  color: #0284c7 !important;
+  background: rgba(0, 0, 0, 0.08) !important;
+  color: #0a0a0a !important;
 }
 
 /* Ensure text labels and children inside active item are colored brand blue */
 :root:not(.dark) :is(aside#nd-sidebar, aside#nd-sidebar-mobile, .fd-sidebar) :is(a, button):is([data-active="true"], [aria-current="page"], .fd-sidebar-link-active) * {
-  color: #0284c7 !important;
+  color: #0a0a0a !important;
 }
 
 /* High-visibility active icon */
 :root:not(.dark) :is(aside#nd-sidebar, aside#nd-sidebar-mobile, .fd-sidebar) :is(a, button):is([data-active="true"], [aria-current="page"], .fd-sidebar-link-active) svg {
-  color: #0284c7 !important;
+  color: #0a0a0a !important;
   opacity: 1 !important;
   stroke-width: 2.25px !important;
   filter: none !important;
@@ -318,20 +384,20 @@ html:not(.dark) aside#nd-sidebar {
 
 /* Prose Typography in Light Mode */
 :root:not(.dark) .prose {
-  color: #334155 !important;
+  color: #404040 !important;
 }
 :root:not(.dark) .prose h1,
 :root:not(.dark) .prose h2,
 :root:not(.dark) .prose h3,
 :root:not(.dark) .prose h4 {
-  color: #0f172a !important;
+  color: #0a0a0a !important;
   letter-spacing: -0.02em;
 }
 :root:not(.dark) .prose strong {
-  color: #0f172a !important;
+  color: #0a0a0a !important;
 }
 :root:not(.dark) .prose a {
-  color: #0284c7 !important;
+  color: #0a0a0a !important;
   font-weight: 500;
   text-decoration: none;
 }
@@ -341,9 +407,9 @@ html:not(.dark) aside#nd-sidebar {
 
 /* Clean Neutral Inline Code Badges in Light Mode (`SceneNode`, `DOCUMENT`, etc.) */
 :root:not(.dark) :not(pre) > code {
-  background: #f1f5f9 !important;
-  color: #0f172a !important;
-  border: 1px solid #e2e8f0 !important;
+  background: #f5f5f5 !important;
+  color: #0a0a0a !important;
+  border: 1px solid #e5e5e5 !important;
   padding: 0.125rem 0.375rem !important;
   border-radius: 0.375rem !important;
   font-size: 0.8125rem !important;
@@ -353,9 +419,9 @@ html:not(.dark) aside#nd-sidebar {
 
 /* Dark Mode Inline Code Badges */
 .dark :not(pre) > code {
-  background: #141517 !important;
-  color: #f7f8f8 !important;
-  border: 1px solid #1c1d1e !important;
+  background: #141414 !important;
+  color: #ffffff !important;
+  border: 1px solid #262626 !important;
   padding: 0.125rem 0.375rem !important;
   border-radius: 0.375rem !important;
   font-size: 0.8125rem !important;
@@ -370,9 +436,9 @@ html:not(.dark) aside#nd-sidebar {
 :root:not(.dark) .fd-codeblock,
 :root:not(.dark) figure.shiki,
 :root:not(.dark) [data-codeblock] {
-  background: #f8fafc !important;
-  background-color: #f8fafc !important;
-  border: 1px solid #e2e8f0 !important;
+  background: #fafafa !important;
+  background-color: #fafafa !important;
+  border: 1px solid #e5e5e5 !important;
   border-radius: 0.75rem !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02) !important;
   overflow: hidden !important;
@@ -380,17 +446,17 @@ html:not(.dark) aside#nd-sidebar {
 
 :root:not(.dark) .fd-codeblock pre,
 :root:not(.dark) .fd-codeblock pre.shiki {
-  background: #f8fafc !important;
-  background-color: #f8fafc !important;
-  color: #1e293b !important;
+  background: #fafafa !important;
+  background-color: #fafafa !important;
+  color: #171717 !important;
 }
 
 :root:not(.dark) .fd-codeblock-title,
 :root:not(.dark) figcaption {
-  background: #f1f5f9 !important;
-  background-color: #f1f5f9 !important;
-  color: #475569 !important;
-  border-bottom: 1px solid #e2e8f0 !important;
+  background: #f5f5f5 !important;
+  background-color: #f5f5f5 !important;
+  color: #525252 !important;
+  border-bottom: 1px solid #e5e5e5 !important;
   font-weight: 500 !important;
   font-family: var(--font-mono) !important;
   font-size: 0.8125rem !important;
@@ -398,20 +464,20 @@ html:not(.dark) aside#nd-sidebar {
 }
 
 :root:not(.dark) .fd-copy-btn {
-  color: #64748b !important;
+  color: #737373 !important;
 }
 :root:not(.dark) .fd-copy-btn:hover {
-  background: #e2e8f0 !important;
-  color: #0f172a !important;
+  background: #e5e5e5 !important;
+  color: #0a0a0a !important;
 }
 
 /* Dark Mode Code Blocks */
 .dark .fd-codeblock,
 .dark figure.shiki,
 .dark [data-codeblock] {
-  background: #0f1011 !important;
-  background-color: #0f1011 !important;
-  border: 1px solid #1c1d1e !important;
+  background: #0d0d0d !important;
+  background-color: #0d0d0d !important;
+  border: 1px solid #262626 !important;
   border-radius: 0.75rem !important;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2), inset 0 0 0 0.5px rgba(255, 255, 255, 0.07) !important;
   overflow: hidden !important;
@@ -419,17 +485,17 @@ html:not(.dark) aside#nd-sidebar {
 
 .dark .fd-codeblock pre,
 .dark .fd-codeblock pre.shiki {
-  background: #0f1011 !important;
-  background-color: #0f1011 !important;
-  color: #f7f8f8 !important;
+  background: #0d0d0d !important;
+  background-color: #0d0d0d !important;
+  color: #ffffff !important;
 }
 
 .dark .fd-codeblock-title,
 .dark figcaption {
-  background: #141517 !important;
-  background-color: #141517 !important;
-  color: #8a8f98 !important;
-  border-bottom: 1px solid #1c1d1e !important;
+  background: #141414 !important;
+  background-color: #141414 !important;
+  color: #a6a6a6 !important;
+  border-bottom: 1px solid #262626 !important;
   font-weight: 500 !important;
   font-family: var(--font-mono) !important;
   font-size: 0.8125rem !important;
@@ -439,26 +505,26 @@ html:not(.dark) aside#nd-sidebar {
 /* Light Mode Cards */
 :root:not(.dark) .linear-card {
   background-color: #ffffff !important;
-  border: 1px solid #e2e8f0 !important;
+  border: 1px solid #e5e5e5 !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02) !important;
 }
 
 /* Light Mode TOC (On this page) */
 :root:not(.dark) #nd-toc a {
-  color: #64748b !important;
+  color: #737373 !important;
 }
 :root:not(.dark) #nd-toc a:hover {
-  color: #0f172a !important;
+  color: #0a0a0a !important;
 }
 :root:not(.dark) #nd-toc a[data-active="true"] {
-  color: #0284c7 !important;
+  color: #0a0a0a !important;
   font-weight: 600 !important;
 }
 
 /* Light Mode Bottom Navigation & Theme Toggle */
 :root:not(.dark) div:has(> button[data-theme-toggle]) {
   background: #ffffff !important;
-  border: 1px solid #e2e8f0 !important;
+  border: 1px solid #e5e5e5 !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
 }
 
@@ -530,7 +596,7 @@ aside#nd-sidebar {
 
 .dark aside#nd-sidebar,
 .dark .fd-sidebar {
-  border-right: 1px solid #1c1d1e !important;
+  border-right: 1px solid #262626 !important;
 }
 
 /* ========================================================
@@ -561,7 +627,7 @@ aside#nd-sidebar {
 }
 
 :is(aside#nd-sidebar, aside#nd-sidebar-mobile, .fd-sidebar) button[data-theme-toggle]:hover {
-  border-color: var(--color-fd-accent-foreground, #94a3b8) !important;
+  border-color: var(--color-fd-accent-foreground, #a3a3a3) !important;
 }
 
 :is(aside#nd-sidebar, aside#nd-sidebar-mobile, .fd-sidebar) button[data-theme-toggle] svg {
@@ -575,42 +641,79 @@ aside#nd-sidebar {
 /* Light Mode Theme Switcher Colors */
 :root:not(.dark) :is(aside#nd-sidebar, aside#nd-sidebar-mobile, .fd-sidebar) button[data-theme-toggle] {
   background: #ffffff !important;
-  border-color: #e2e8f0 !important;
+  border-color: #e5e5e5 !important;
 }
 
 :root:not(.dark) :is(aside#nd-sidebar, aside#nd-sidebar-mobile, .fd-sidebar) button[data-theme-toggle] svg:first-child {
-  background: #f1f5f9 !important;
-  color: #0284c7 !important;
+  background: #f5f5f5 !important;
+  color: #0a0a0a !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
 }
 
 :root:not(.dark) :is(aside#nd-sidebar, aside#nd-sidebar-mobile, .fd-sidebar) button[data-theme-toggle] svg:last-child {
   background: transparent !important;
-  color: #94a3b8 !important;
+  color: #a3a3a3 !important;
 }
 
 :root:not(.dark) :is(aside#nd-sidebar, aside#nd-sidebar-mobile, .fd-sidebar) button[data-theme-toggle] svg:last-child:hover {
-  color: #0f172a !important;
+  color: #0a0a0a !important;
 }
 
 /* Dark Mode Theme Switcher Colors */
 .dark :is(aside#nd-sidebar, aside#nd-sidebar-mobile, .fd-sidebar) button[data-theme-toggle] {
-  background: #0f1011 !important;
-  border-color: #1c1d1e !important;
+  background: #0d0d0d !important;
+  border-color: #262626 !important;
 }
 
 .dark :is(aside#nd-sidebar, aside#nd-sidebar-mobile, .fd-sidebar) button[data-theme-toggle] svg:last-child {
-  background: #1c1d1e !important;
-  color: #00f0ff !important;
+  background: #262626 !important;
+  color: #ffffff !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4) !important;
 }
 
 .dark :is(aside#nd-sidebar, aside#nd-sidebar-mobile, .fd-sidebar) button[data-theme-toggle] svg:first-child {
   background: transparent !important;
-  color: #64748b !important;
+  color: #737373 !important;
 }
 
 .dark :is(aside#nd-sidebar, aside#nd-sidebar-mobile, .fd-sidebar) button[data-theme-toggle] svg:first-child:hover {
-  color: #f7f8f8 !important;
+  color: #ffffff !important;
 }
 
+
+/* ========================================================
+   Docs Typography (landing page style)
+   ======================================================== */
+#nd-page h1 {
+  font-weight: 500 !important;
+  letter-spacing: -1.5px !important;
+  line-height: 1.1 !important;
+}
+
+#nd-page :is(.prose, .fd-page-body) h2 {
+  font-weight: 500 !important;
+  letter-spacing: -0.75px !important;
+}
+
+#nd-page :is(.prose, .fd-page-body) h3 {
+  font-weight: 500 !important;
+  letter-spacing: -0.3px !important;
+}
+
+.dark #nd-page .prose a {
+  color: #ffffff;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.3);
+  text-underline-offset: 3px;
+}
+
+.dark #nd-page .prose a:hover {
+  text-decoration-color: #ffffff;
+}
+
+.dark :is(aside#nd-sidebar, .fd-sidebar) button:has(kbd) {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: none !important;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+  border-radius: 10px !important;
+}

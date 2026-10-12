@@ -61,14 +61,14 @@ export const FeatureGrid: React.FC = () => {
   ];
 
   return (
-    <section id="capabilities" className="py-24 border-t border-border bg-background">
-      <div className="max-w-[1436px] mx-auto px-6">
+    <section id="capabilities" className="py-24 md:py-32 bg-background">
+      <div className="max-w-7xl mx-auto px-8 md:px-12">
         <div className="mb-16">
-          <div className="text-xs font-mono font-medium text-vitra-cyan uppercase tracking-wider mb-2">
+          <div className="text-sm font-medium text-muted-foreground mb-3">
             Complete Ecosystem
           </div>
-          <h2 className="text-3xl sm:text-4xl md:text-[48px] font-medium tracking-[-0.022em] text-foreground mb-4">
-            Everything your UI pipeline needs
+          <h2 className="text-4xl md:text-5xl font-medium tracking-[-1.5px] leading-[1.15] text-foreground mb-4">
+            Everything your UI pipeline <span className="font-serif italic font-normal">needs</span>.
           </h2>
           <p className="max-w-2xl text-muted-foreground text-[16px]">
             Vitra provides the foundational runtime that connects designers, engineers, and AI agents into a single, unified development cycle.
@@ -82,7 +82,7 @@ export const FeatureGrid: React.FC = () => {
             return (
               <div
                 key={idx}
-                className="linear-card rounded-xl p-6 flex flex-col justify-between hover:border-foreground/20 transition-colors group"
+                className="linear-card rounded-2xl p-6 flex flex-col justify-between hover:border-foreground/20 transition-colors group"
               >
                 <div>
                   <div className="flex items-center justify-between mb-6">

@@ -6,15 +6,15 @@ export const GitVisualDAG: React.FC = () => {
   const [selectedTimeline, setSelectedTimeline] = useState<'merged' | 'designer' | 'engineer'>('merged');
 
   return (
-    <section id="collaboration" className="py-24 border-t border-border bg-background">
-      <div className="max-w-[1436px] mx-auto px-6">
+    <section id="collaboration" className="py-24 md:py-32 bg-background">
+      <div className="max-w-7xl mx-auto px-8 md:px-12">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
           <div>
-            <div className="text-xs font-mono font-medium text-vitra-cyan uppercase tracking-wider mb-2">
+            <div className="text-sm font-medium text-muted-foreground mb-3">
               Team Collaboration
             </div>
-            <h2 className="text-3xl sm:text-4xl md:text-[48px] font-medium tracking-[-0.022em] text-foreground">
-              Parallel Work Without Lockouts
+            <h2 className="text-4xl md:text-5xl font-medium tracking-[-1.5px] leading-[1.15] text-foreground">
+              Parallel work, without <span className="font-serif italic font-normal">lockouts</span>.
             </h2>
           </div>
           <p className="max-w-xl text-muted-foreground text-[16px] leading-relaxed">
@@ -25,7 +25,7 @@ export const GitVisualDAG: React.FC = () => {
         {/* Visual Reconciliation Inspector Container */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left: Parallel Team Streams */}
-          <div className="lg:col-span-5 linear-card rounded-xl p-6 flex flex-col justify-between">
+          <div className="lg:col-span-5 linear-card rounded-2xl p-6 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
                 <span className="text-xs font-mono text-muted-foreground">PARALLEL CONTRIBUTIONS</span>
@@ -100,7 +100,7 @@ export const GitVisualDAG: React.FC = () => {
           </div>
 
           {/* Right: What actually gets resolved */}
-          <div className="lg:col-span-7 linear-card rounded-xl p-6 flex flex-col justify-between">
+          <div className="lg:col-span-7 linear-card rounded-2xl p-6 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
                 <span className="text-xs font-mono text-muted-foreground">AUTOMATIC COMPONENT RECONCILIATION</span>

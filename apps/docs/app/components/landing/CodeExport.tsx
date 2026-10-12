@@ -12,7 +12,7 @@ export const CodeExport: React.FC = () => {
     { num: 3, text: <span><span className="text-muted-foreground">// Compiled directly from Vitra Scene AST</span></span> },
     { num: 4, text: <span><span className="text-code-keyword">export const</span> <span className="text-code-type">MetricCard</span>: <span className="text-code-type">React.FC</span>&lt;&#123; <span className="text-foreground">label</span>: <span className="text-code-type">string</span>; <span className="text-foreground">value</span>: <span className="text-code-type">string</span> &#125;&gt; = (&#123; <span className="text-foreground">label</span>, <span className="text-foreground">value</span> &#125;) =&gt; &#123;</span> },
     { num: 5, text: <span>  <span className="text-code-keyword">return</span> (</span> },
-    { num: 6, text: <span>    &lt;<span className="text-code-keyword">div</span> <span className="text-code-type">className</span>=<span className="text-code-string">"bg-card border border-border rounded-xl p-6 shadow-sm flex flex-col gap-2"</span>&gt;</span> },
+    { num: 6, text: <span>    &lt;<span className="text-code-keyword">div</span> <span className="text-code-type">className</span>=<span className="text-code-string">"bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col gap-2"</span>&gt;</span> },
     { num: 7, text: <span>      &lt;<span className="text-code-keyword">span</span> <span className="text-code-type">className</span>=<span className="text-code-string">"text-xs font-mono text-muted-foreground uppercase tracking-wider"</span>&gt;</span> },
     { num: 8, text: <span>        &#123;<span className="text-foreground">label</span>&#125;</span> },
     { num: 9, text: <span>      &lt;/<span className="text-code-keyword">span</span>&gt;</span> },
@@ -105,15 +105,15 @@ struct MetricCardView: View {
   const currentLines = target === 'react' ? reactCodeLines : swiftUiCodeLines;
 
   return (
-    <section id="synthesis" className="py-24 border-t border-border bg-background">
-      <div className="max-w-[1436px] mx-auto px-6">
+    <section id="synthesis" className="py-24 md:py-32 bg-background">
+      <div className="max-w-7xl mx-auto px-8 md:px-12">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
           <div>
-            <div className="text-xs font-mono font-medium text-vitra-cyan uppercase tracking-wider mb-2">
+            <div className="text-sm font-medium text-muted-foreground mb-3">
               Automatic Hand-Off
             </div>
-            <h2 className="text-3xl sm:text-4xl md:text-[48px] font-medium tracking-[-0.022em] text-foreground">
-              Design Directly to Production Code
+            <h2 className="text-4xl md:text-5xl font-medium tracking-[-1.5px] leading-[1.15] text-foreground">
+              Design, directly to production <span className="font-serif italic font-normal">code</span>.
             </h2>
           </div>
           <p className="max-w-xl text-muted-foreground text-[16px] leading-relaxed">
@@ -122,7 +122,7 @@ struct MetricCardView: View {
         </div>
 
         {/* Code Editor Window */}
-        <div className="linear-card rounded-xl overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.6)]">
+        <div className="linear-card rounded-2xl overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.6)]">
           {/* Top IDE Toolbar */}
           <div className="h-11 px-4 bg-secondary border-b border-border flex items-center justify-between">
             {/* Window Dots & Tab */}
